@@ -1,4 +1,6 @@
-<h1 align="center">My Little Agent</h1>
+<p align="center">
+  <img src="./assets/logo.svg" alt="My Little Agent" width="440">
+</p>
 
 <p align="center">
 A tiny multi-agent framework that runs entirely in the browser,<br/>
@@ -60,21 +62,11 @@ const report = await chain(
 
 ## Getting Started
 
-### Requirements
-
-|         |                                                       |
-| :------ | :---------------------------------------------------- |
-| Browser | Chrome 138+ desktop (Windows 10/11, macOS 13+, Linux) |
-| Disk    | 22 GB free                                            |
-| GPU     | 4 GB VRAM                                             |
-
-Check model status at `chrome://on-device-internals`.
-
-### Install
-
 ```bash
 pnpm add my-little-agent
 ```
+
+Works on Chrome 138+ desktop. Chrome downloads and manages the model itself, so nothing is added to your bundle. Check its status at `chrome://on-device-internals`.
 
 ### Three lines
 
@@ -364,7 +356,7 @@ Most requests finish locally, instantly and for free; only the hard ones reach y
 
 ### Don't use it when
 
-- **The feature must work for everyone.** Chrome desktop only. Keep it additive, or add a server fallback.
+- **The feature must work for everyone.** Chrome desktop only, and only on machines with enough free disk and GPU memory for the model. Keep it additive, or add a server fallback.
 - **You need long documents.** Check `agent.usage` and chunk the input.
 - **You need reliable facts.** Feed knowledge through tools.
 - **First impressions matter.** The first run may download several gigabytes. Always show progress.
