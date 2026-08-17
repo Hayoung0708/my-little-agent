@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <title>My Little Agent 예제</title>
+    <style>
+      body {
+        font:
+          15px/1.6 system-ui,
+          sans-serif;
+        max-width: 46rem;
+        margin: 3rem auto;
+        padding: 0 1rem;
+      }
+      pre {
+        background: #f4f4f5;
+        padding: 1rem;
+        border-radius: 8px;
+        white-space: pre-wrap;
+      }
+      button {
+        padding: 0.5rem 1rem;
+        margin-right: 0.5rem;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>My Little Agent</h1>
+    <p id="status">확인 중…</p>
+    <button id="chat">단일 에이전트</button>
+    <button id="tools">도구 호출</button>
+    <button id="flow">병렬 + 요약 워크플로</button>
+    <pre id="out"></pre>
+
+    <!--
+      실행법: 프로젝트 루트에서 `pnpm build` 후 `pnpm example` 로 띄운다.
+      Chrome 138+ 에서만 동작한다.
+    -->
+    <script type="module">
+      import { Agent, availability, chain, parallel, tool } from '../dist/esm/index.js'
+
+      const out = document.getElementById('out')
+      const status = document.getElementById('status')
+      const log = (text) => {
+        out.textContent += text
+      }
+
+      // 1) 모델 상태부터 확인한다. 'downloadable'이면 첫 호출에서 다운로드가 시작된다.
+      const state = await availability()
+      status.textContent = `모델 상태: ${state}`
+
+      document.getElementById('chat').onclick = async () => {
+        out.textContent = ''
+        const a = new Agent({
+          instruction: '너는 간결한 한국어 비서다. 세 문장 이내로 답해라.',
+          onDownloadProgress: (p) => {
+            status.textContent = `다운로드 ${Math.round(p * 100)}%`
+          },
+        })
+        // 스트리밍으로 받아 즉시 화면에 흘린다.
+        for await (const chunk of a.stream('재귀를 초등학생에게 설명해줘')) log(chunk)
+        a.destroy()
+      }
+
+      document.getElementById('tools').onclick = async () => {
+        out.textContent = ''
+        // 도구는 그냥 평범한 함수다. 여기서는 브라우저 API를 그대로 쓴다.
+        const clock = tool({
+          name: 'now',
+          description: '현재 시각을 ISO 문자열로 돌려준다',
+          execute: () => new Date().toISOString(),
+        })
+        const a = new Agent({
+          instruction: '너는 비서다. 시간이 필요하면 도구를 써라.',
+          tools: [clock],
+          onEvent: (e) => log(`[${e.type}] ${JSON.stringify(e)}\n`),
+        })
+        log('\n' + (await a.send('지금 몇 시야?')) + '\n')
+        a.destroy()
+      }
+
+      document.getElementById('flow').onclick = async () => {
+        out.textContent = ''
+        const lens = (role) =>
+          new Agent({
+            name: role,
+            instruction: `너는 ${role} 관점에서만 두 문장으로 평가한다.`,
+          })
+
+        const summarizer = new Agent({
+          name: 'summarizer',
+          instruction: '여러 관점의 메모를 받아 결론 한 문단으로 합쳐라.',
+        })
+
+        // 세 관점을 동시에 돌리고, 그 결과를 요약 에이전트에 넘긴다.
+        const flow = chain(
+          parallel([lens('장점'), lens('단점'), lens('위험')]),
+          summarizer,
+        )
+        log(await flow.run('사내 도구를 온디바이스 AI로 옮기는 계획'))
+      }
+    </script>
+  </body>
+</html>

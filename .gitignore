@@ -1,0 +1,7 @@
+node_modules
+dist
+coverage
+*.tgz
+
+# 에이전트 런타임 상태 (oh-my-claudecode)
+.omc/
