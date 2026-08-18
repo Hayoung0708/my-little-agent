@@ -73,7 +73,12 @@ export function parseJson<T>(raw: string): T {
     const start = text.indexOf('{')
     const end = text.lastIndexOf('}')
     if (start !== -1 && end > start) {
-      return JSON.parse(text.slice(start, end + 1)) as T
+      try {
+        return JSON.parse(text.slice(start, end + 1)) as T
+      } catch {
+        // 이것도 실패하면 아래 공통 에러로 떨어진다.
+        // 여기서 SyntaxError를 그대로 흘리면 호출부가 원인을 알 수 없다.
+      }
     }
     throw new Error(`모델 출력을 JSON으로 파싱하지 못했다: ${raw.slice(0, 200)}`)
   }
