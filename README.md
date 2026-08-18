@@ -13,7 +13,8 @@ powered by <a href="https://developer.chrome.com/docs/ai/built-in">Chrome Built-
 </p>
 
 <p align="center">
-  <b>English</b> | <a href="./README-ko_kr.md">한국어</a>
+  <b>English</b> |
+  <a href="https://github.com/Hayoung0708/my-little-agent/blob/main/README-ko_kr.md">한국어</a>
 </p>
 
 ```ts

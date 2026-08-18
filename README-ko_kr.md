@@ -13,7 +13,8 @@
 </p>
 
 <p align="center">
-  <a href="./README.md">English</a> | <b>한국어</b>
+  <a href="https://github.com/Hayoung0708/my-little-agent/blob/main/README.md">English</a> |
+  <b>한국어</b>
 </p>
 
 ```ts
