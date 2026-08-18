@@ -564,7 +564,8 @@ Importing only `Agent` is smaller than importing everything, which means tree-sh
 corepack enable   # installs the pinned pnpm from package.json
 pnpm install
 
-pnpm test         # vitest, with an injected fake LanguageModel global
+pnpm test         # unit + parser tests, with an injected fake LanguageModel global
+pnpm test:all     # unit + type + packaging
 pnpm typecheck
 pnpm lint         # eslint (@tanstack/eslint-config)
 pnpm format       # prettier
@@ -572,6 +573,19 @@ pnpm size         # reproduces the size table above
 pnpm build        # vite (@tanstack/vite-config) + publint --strict
 pnpm example      # try it in Chrome 138+
 ```
+
+### Test layers
+
+Four layers, because each catches something the others cannot.
+
+| Command             | What it covers                                                                                                                                                                                                             |
+| :------------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm test`         | Agent, tool loop, workflows, memory — against a fake `LanguageModel` global, so it runs without Chrome. Includes parser fuzzing, since model output is the one input we do not control.                                    |
+| `pnpm test:types`   | Generic inference consumers rely on (`tool<T>`, `generate<T>`, `Runnable`). Types can break while runtime stays green.                                                                                                     |
+| `pnpm test:package` | Packs, installs the tarball with npm, runs it, and resolves types under both `bundler` and `node16`. Also asserts no install lifecycle scripts ship — that bug reached the release candidate once.                         |
+| `pnpm test:e2e`     | Playwright against **real** Chrome. The fake model answers exactly as told; only this proves Gemini Nano honors the JSON Schema constraint and that the tool loop converges. Skips itself when Built-in AI is unavailable. |
+
+`test:e2e` uses your installed Chrome (`channel: 'chrome'`), so there is no browser download.
 
 | Tool                                           | Role                                                                  |
 | :--------------------------------------------- | :-------------------------------------------------------------------- |

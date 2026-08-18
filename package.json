@@ -41,6 +41,10 @@
     "example": "vite example",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:types": "vitest run --typecheck.only",
+    "test:package": "node scripts/test-package.mjs",
+    "test:e2e": "playwright test",
+    "test:all": "pnpm test && pnpm test:types && pnpm test:package",
     "typecheck": "tsc --noEmit",
     "size": "node scripts/size.mjs",
     "lint": "eslint .",
@@ -61,6 +65,7 @@
   "devDependencies": {
     "@commitlint/cli": "^19.6.0",
     "@commitlint/config-conventional": "^19.6.0",
+    "@playwright/test": "^1.49.0",
     "@tanstack/eslint-config": "^0.4.0",
     "@tanstack/vite-config": "^0.4.0",
     "esbuild": "^0.25.0",

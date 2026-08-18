@@ -567,7 +567,8 @@ await vision.send([
 corepack enable   # package.json에 고정된 pnpm이 설치된다
 pnpm install
 
-pnpm test         # vitest, 가짜 LanguageModel 전역을 주입해 검증
+pnpm test         # 유닛 + 파서 테스트, 가짜 LanguageModel 전역을 주입해 검증
+pnpm test:all     # 유닛 + 타입 + 패키징
 pnpm typecheck
 pnpm lint         # eslint (@tanstack/eslint-config)
 pnpm format       # prettier
@@ -575,6 +576,19 @@ pnpm size         # 위 크기 표를 재현
 pnpm build        # vite (@tanstack/vite-config) + publint --strict
 pnpm example      # Chrome 138+ 에서 실제 동작 확인
 ```
+
+### 테스트 층
+
+네 층입니다. 각자 다른 층이 못 잡는 걸 잡습니다.
+
+| 명령                | 잡는 것                                                                                                                                                                                               |
+| :------------------ | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm test`         | Agent, 툴 루프, 워크플로, 메모리. 가짜 `LanguageModel` 전역을 쓰므로 Chrome 없이 돕니다. 파서 퍼징도 포함 — 모델 출력은 우리가 통제할 수 없는 유일한 입력입니다.                                      |
+| `pnpm test:types`   | 소비자가 기대는 제네릭 추론 (`tool<T>`, `generate<T>`, `Runnable`). 런타임은 멀쩡한데 타입만 깨지는 회귀를 잡습니다.                                                                                  |
+| `pnpm test:package` | pack → npm 설치 → 실행 → `bundler`/`node16` 양쪽 타입 해석. 설치 라이프사이클 스크립트가 딸려 나가지 않는지도 확인합니다. 실제로 배포 직전에 터졌던 문제입니다.                                       |
+| `pnpm test:e2e`     | Playwright로 **진짜** Chrome에서 검증. 가짜 모델은 시킨 대로만 답하니, Gemini Nano가 JSON Schema 제약을 지키고 툴 루프가 수렴하는지는 이 층에서만 확인됩니다. Built-in AI가 없으면 스스로 skip합니다. |
+
+`test:e2e`는 시스템에 설치된 Chrome(`channel: 'chrome'`)을 쓰므로 브라우저를 따로 내려받지 않습니다.
 
 | 도구                                           | 역할                                                                 |
 | :--------------------------------------------- | :------------------------------------------------------------------- |
