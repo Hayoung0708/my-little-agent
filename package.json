@@ -1,6 +1,6 @@
 {
   "name": "my-little-agent",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "내 컴퓨터에서 도는(My) 가벼운(Little) 멀티 에이전트 프레임워크(Agent) — Chrome Built-in AI 기반",
   "type": "module",
   "sideEffects": false,

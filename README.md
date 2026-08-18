@@ -1,6 +1,4 @@
-<p align="center">
-  <img src="./assets/logo.svg" alt="My Little Agent" width="440">
-</p>
+<h1 align="center">My Little Agent</h1>
 
 <p align="center">
 A tiny multi-agent framework that runs entirely in the browser,<br/>

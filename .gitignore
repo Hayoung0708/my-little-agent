@@ -5,3 +5,7 @@ coverage
 
 # 에이전트 런타임 상태 (oh-my-claudecode)
 .omc/
+
+# Playwright 산출물
+test-results/
+playwright-report/
