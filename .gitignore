@@ -9,3 +9,6 @@ coverage
 # Playwright 산출물
 test-results/
 playwright-report/
+
+# explainer 영상 (포트폴리오용, 저장소엔 안 올림)
+/media

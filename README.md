@@ -67,6 +67,10 @@ pnpm add my-little-agent
 
 Works on Chrome 138+ desktop. Chrome downloads and manages the model itself, so nothing is added to your bundle. Check its status at `chrome://on-device-internals`.
 
+> **About storage.** The model download is around 4 GB, but Chrome requires **22 GB free** on the volume holding your Chrome profile before it will start the download, and it **deletes the model if free space later falls below 10 GB**. Sizes vary by model version — `chrome://on-device-internals` shows the current one.
+>
+> So availability is not a one-time check. A machine that worked yesterday can report `unavailable` today because the disk filled up, and nothing surfaces an error — `availability()` just returns `'unavailable'`.
+
 ### Three lines
 
 ```ts
@@ -355,7 +359,7 @@ Most requests finish locally, instantly and for free; only the hard ones reach y
 
 ### Don't use it when
 
-- **The feature must work for everyone.** Chrome desktop only, and only on machines with enough free disk and GPU memory for the model. Keep it additive, or add a server fallback.
+- **The feature must work for everyone.** Chrome desktop only, and only on machines that clear the storage gate (22 GB free) and have more than 4 GB of VRAM — or 16 GB RAM with 4+ cores on the CPU path. Keep it additive, or add a server fallback.
 - **You need long documents.** Check `agent.usage` and chunk the input.
 - **You need reliable facts.** Feed knowledge through tools.
 - **First impressions matter.** The first run may download several gigabytes. Always show progress.

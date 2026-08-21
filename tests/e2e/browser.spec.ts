@@ -16,7 +16,7 @@ test.beforeEach(async ({ page }) => {
   const state = (await status.textContent()) ?? ''
   test.skip(
     state.includes('unavailable'),
-    '이 기기에서 Built-in AI를 쓸 수 없다. chrome://on-device-internals 확인 필요',
+    '이 기기에서 Built-in AI를 쓸 수 없다. 여유 디스크가 10GB 밑이면 Chrome이 모델을 지운다. chrome://on-device-internals 확인 필요',
   )
 })
 
