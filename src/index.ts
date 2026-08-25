@@ -22,6 +22,25 @@ export type { PageToolsOptions } from './builtin'
 export { localMemory, memoryTools } from './memory'
 export type { MemoryStore } from './memory'
 
+export {
+  languageDetector,
+  proofreader,
+  rewriter,
+  summarizer,
+  translator,
+  writer,
+} from './task'
+export type {
+  ProofreaderRunnable,
+  ProofreaderStepOptions,
+  RewriterStepOptions,
+  SummarizerStepOptions,
+  TaskOptions,
+  TaskRunnable,
+  TranslatorStepOptions,
+  WriterStepOptions,
+} from './task'
+
 export { chain, parallel, refine, router, step } from './workflow'
 export type { ParallelOptions, RefineOptions, RouterOptions } from './workflow'
 

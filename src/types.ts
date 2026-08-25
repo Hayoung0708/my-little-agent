@@ -47,6 +47,11 @@ export interface LanguageModelSession {
   readonly contextUsage: number
   /** 컨텍스트 창 최대 토큰 수 */
   readonly contextWindow: number
+  /**
+   * 이 입력을 보내면 창을 얼마나 쓸지 미리 계산한다. 보내기 전에 넘칠지 알 수 있다.
+   * 구형 Chrome에는 없을 수 있으므로 optional이다.
+   */
+  measureContextUsage?: (input: AgentInput) => Promise<number>
   addEventListener: (type: 'contextoverflow', listener: () => void) => void
 }
 
@@ -90,8 +95,191 @@ export interface LanguageModelStatic {
   params?: () => Promise<ModelParams | null>
 }
 
+/* ────────────────────────────────────────────────────────────────────────────
+ * Task API — 번역/요약/언어감지 전용 기능.
+ *
+ * Prompt API와 달리 한 가지 일만 하도록 만들어진 별개 모델이다. 그래서
+ * (1) 같은 일에 더 정확하고 (2) 더 빠르며 (3) **LanguageModel의 컨텍스트 창을
+ * 전혀 쓰지 않는다**. 창이 수천 토큰뿐인 온디바이스 환경에서 세 번째가 가장 크다.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/** create()가 공통으로 받는 옵션. 이 모델들도 첫 사용 시 다운로드된다. */
+export interface TaskCreateOptions {
+  signal?: AbortSignal
+  monitor?: (monitor: DownloadMonitor) => void
+}
+
+export interface TranslatorOptions extends TaskCreateOptions {
+  /** BCP 47 태그. 예: 'en' */
+  sourceLanguage: string
+  /** BCP 47 태그. 예: 'ko'. sourceLanguage와 같으면 create()가 던진다. */
+  targetLanguage: string
+}
+
+export interface TranslatorInstance {
+  translate: (input: string, options?: { signal?: AbortSignal }) => Promise<string>
+  destroy: () => void
+}
+
+export interface TranslatorStatic {
+  availability: (options: {
+    sourceLanguage: string
+    targetLanguage: string
+  }) => Promise<Availability>
+  create: (options: TranslatorOptions) => Promise<TranslatorInstance>
+}
+
+export interface SummarizerOptions extends TaskCreateOptions {
+  /** 'tldr' | 'key-points' | 'teaser' | 'headline' */
+  type?: string
+  /** 'markdown' | 'plain-text' */
+  format?: string
+  /** 'short' | 'medium' | 'long' */
+  length?: string
+  /** 모든 요약에 공통으로 깔리는 배경 설명 */
+  sharedContext?: string
+  expectedInputLanguages?: Array<string>
+  outputLanguage?: string
+}
+
+export interface SummarizerInstance {
+  summarize: (
+    input: string,
+    options?: { context?: string; signal?: AbortSignal },
+  ) => Promise<string>
+  destroy: () => void
+}
+
+export interface SummarizerStatic {
+  availability: (options?: SummarizerOptions) => Promise<Availability>
+  create: (options?: SummarizerOptions) => Promise<SummarizerInstance>
+}
+
+/** detect() 결과 한 건. confidence 내림차순으로 온다. */
+export interface DetectedLanguage {
+  detectedLanguage: string
+  confidence: number
+}
+
+export interface LanguageDetectorInstance {
+  detect: (
+    input: string,
+    options?: { signal?: AbortSignal },
+  ) => Promise<Array<DetectedLanguage>>
+  destroy: () => void
+}
+
+export interface LanguageDetectorStatic {
+  availability: (options?: {
+    expectedInputLanguages?: Array<string>
+  }) => Promise<Availability>
+  create: (
+    options?: TaskCreateOptions & { expectedInputLanguages?: Array<string> },
+  ) => Promise<LanguageDetectorInstance>
+}
+
+/** write/rewrite 호출마다 줄 수 있는 배경 설명 */
+export interface TaskInvokeOptions {
+  context?: string
+  signal?: AbortSignal
+}
+
+export interface WriterOptions extends TaskCreateOptions {
+  /** 'formal' | 'neutral' | 'casual' */
+  tone?: string
+  /** 'markdown' | 'plain-text' */
+  format?: string
+  /** 'short' | 'medium' | 'long' */
+  length?: string
+  sharedContext?: string
+  expectedInputLanguages?: Array<string>
+  outputLanguage?: string
+}
+
+export interface WriterInstance {
+  write: (input: string, options?: TaskInvokeOptions) => Promise<string>
+  destroy: () => void
+}
+
+export interface WriterStatic {
+  availability: (options?: WriterOptions) => Promise<Availability>
+  create: (options?: WriterOptions) => Promise<WriterInstance>
+}
+
+export interface RewriterOptions extends TaskCreateOptions {
+  /** 'more-formal' | 'as-is' | 'more-casual' */
+  tone?: string
+  /** 'as-is' | 'markdown' | 'plain-text' */
+  format?: string
+  /** 'shorter' | 'as-is' | 'longer' */
+  length?: string
+  sharedContext?: string
+  expectedInputLanguages?: Array<string>
+  outputLanguage?: string
+}
+
+export interface RewriterInstance {
+  rewrite: (input: string, options?: TaskInvokeOptions) => Promise<string>
+  destroy: () => void
+}
+
+export interface RewriterStatic {
+  availability: (options?: RewriterOptions) => Promise<Availability>
+  create: (options?: RewriterOptions) => Promise<RewriterInstance>
+}
+
+/** 교정 한 건. 원문에서 몇 번째 글자부터 몇 번째까지가 잘못됐는지 알려준다. */
+export interface ProofreadCorrection {
+  startIndex: number
+  endIndex: number
+  correction?: string
+  type?: string
+  explanation?: string
+}
+
+/** proofread() 결과. 고친 전문과 어디를 왜 고쳤는지가 같이 온다. */
+export interface ProofreadResult {
+  correctedInput: string
+  corrections: Array<ProofreadCorrection>
+}
+
+export interface ProofreaderOptions extends TaskCreateOptions {
+  expectedInputLanguages?: Array<string>
+  includeCorrectionTypes?: boolean
+  includeCorrectionExplanations?: boolean
+}
+
+export interface ProofreaderInstance {
+  proofread: (
+    input: string,
+    options?: { signal?: AbortSignal },
+  ) => Promise<ProofreadResult>
+  destroy: () => void
+}
+
+export interface ProofreaderStatic {
+  availability: (options?: ProofreaderOptions) => Promise<Availability>
+  create: (options?: ProofreaderOptions) => Promise<ProofreaderInstance>
+}
+
 declare global {
   /** Chrome 138+ 에서 노출되는 전역. 미지원 브라우저에서는 undefined. */
 
   var LanguageModel: LanguageModelStatic | undefined
+
+  var Translator: TranslatorStatic | undefined
+
+  var Summarizer: SummarizerStatic | undefined
+
+  var LanguageDetector: LanguageDetectorStatic | undefined
+
+  /** Chrome 137~148 오리진 트라이얼. 안정 버전에는 아직 없다. */
+
+  var Writer: WriterStatic | undefined
+
+  var Rewriter: RewriterStatic | undefined
+
+  /** Chrome 141~145 오리진 트라이얼. 안정 버전에는 아직 없다. */
+
+  var Proofreader: ProofreaderStatic | undefined
 }
