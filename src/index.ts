@@ -16,6 +16,9 @@ export type { SessionOptions } from './model'
 export { tool } from './tool'
 export type { AgentTool } from './tool'
 
+export { calculator, evaluateExpression, pageTools } from './builtin'
+export type { PageToolsOptions } from './builtin'
+
 export { localMemory, memoryTools } from './memory'
 export type { MemoryStore } from './memory'
 
