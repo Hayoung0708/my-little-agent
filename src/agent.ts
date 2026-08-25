@@ -358,6 +358,16 @@ export class Agent implements Runnable {
     return forked
   }
 
+  /**
+   * stateless 설정값. **지정하지 않았으면 undefined다**(false가 아니다).
+   *
+   * 워크플로우 조합기가 "정하지 않음"과 "일부러 끔"을 구분하는 데 쓴다.
+   * 일부러 끈 것이라면 stateless: false를 명시해라. 그러면 경고가 나오지 않는다.
+   */
+  get stateless(): boolean | undefined {
+    return this.#options.stateless
+  }
+
   /** 컨텍스트 사용량. 세션이 아직 없으면 null. */
   get usage(): { used: number; total: number } | null {
     if (!this.#session) return null

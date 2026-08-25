@@ -2,7 +2,32 @@ import type { Agent, Runnable } from './agent'
 import type { JSONSchema } from './types'
 
 /**
- * 순수 함수를 워크플로 단계로 감싼다.
+ * 워크플로우에 들어온 Agent가 stateless가 아니면 한 번 알려준다.
+ *
+ * 이것이 가장 찾기 어려운 실수다. 에러가 나지 않고 첫 실행도 멀쩡한데,
+ * 두 번째 실행부터 이전 대화가 컨텍스트에 남아 답이 조용히 달라진다.
+ * 창이 수천 토큰뿐이라 몇 번만 돌려도 앞부분이 통째로 밀려난다.
+ *
+ * 조합기를 만들 때 한 번만 검사한다(실행마다가 아니다).
+ * `stateless: false`를 명시했으면 의도한 것으로 보고 조용히 넘어간다.
+ */
+function warnIfStateful(steps: Array<Runnable>, where: string): void {
+  for (const step of steps) {
+    // instanceof 대신 send로 판별한다. Agent를 값으로 import하면
+    // chain만 쓰는 사용자도 Agent 전체를 번들에 끌고 오게 된다.
+    const agent = step as Partial<Agent>
+    if (typeof agent.send !== 'function' || agent.stateless !== undefined) continue
+
+    console.warn(
+      `[my-little-agent] ${where}의 "${step.name}"에 stateless가 켜져 있지 않다.\n` +
+        `  워크플로우를 두 번 이상 실행하면 이전 실행의 대화가 남아 결과가 달라진다.\n` +
+        `  단계로 쓰는 에이전트라면 stateless: true를, 대화를 이어갈 의도라면 stateless: false를 명시해라.`,
+    )
+  }
+}
+
+/**
+ * 순수 함수를 워크플로우 단계로 감싼다.
  * 전처리/후처리처럼 모델이 필요 없는 단계를 chain 사이에 끼울 때 쓴다.
  */
 export function step(
@@ -20,6 +45,7 @@ export function step(
  * ```
  */
 export function chain(...steps: Array<Runnable>): Runnable {
+  warnIfStateful(steps, 'chain')
   return {
     name: `chain(${steps.map((s) => s.name).join('→')})`,
     async run(input) {
@@ -47,6 +73,7 @@ export function parallel(
   steps: Array<Runnable>,
   options: ParallelOptions = {},
 ): Runnable {
+  warnIfStateful(steps, 'parallel')
   return {
     name: `parallel(${steps.map((s) => s.name).join(',')})`,
     async run(input) {
@@ -74,6 +101,8 @@ export interface RouterOptions {
  */
 export function router(options: RouterOptions): Runnable {
   const names = Object.keys(options.routes)
+  // 분류기도 실행마다 대화가 쌓인다. 라우팅은 보통 매번 백지에서 판단해야 한다.
+  warnIfStateful([options.classifier, ...Object.values(options.routes)], 'router')
   const schema: JSONSchema = {
     type: 'object',
     properties: {
@@ -132,6 +161,8 @@ const EVAL_SCHEMA: JSONSchema = {
 export function refine(options: RefineOptions): Runnable {
   const maxRounds = options.maxRounds ?? 3
   const minScore = options.minScore ?? 80
+  // 여기가 가장 심하다. worker와 evaluator를 한 번의 run에서만 최대 maxRounds번 부른다.
+  warnIfStateful([options.worker, options.evaluator], 'refine')
 
   return {
     name: `refine(${options.worker.name})`,
