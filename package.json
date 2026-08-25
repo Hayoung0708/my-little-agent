@@ -29,7 +29,8 @@
   "files": [
     "dist",
     "src",
-    "README-en_us.md"
+    "README-en_us.md",
+    "AGENTS.md"
   ],
   "module": "./dist/esm/index.js",
   "types": "./dist/esm/index.d.ts",
