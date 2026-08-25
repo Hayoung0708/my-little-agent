@@ -90,6 +90,57 @@ describe('Agent', () => {
     expect(mock.calls[0]?.options?.responseConstraint).toBeUndefined()
   })
 
+  describe('오늘 날짜 주입', () => {
+    // 온디바이스 모델은 시계가 없어 날짜를 확신에 차서 틀린다. 다만 대부분의
+    // 에이전트는 날짜가 필요 없으므로 기본은 꺼 두고, 필요한 쪽만 켜게 한다.
+    const today = () => {
+      const now = new Date()
+      const pad = (v: number) => String(v).padStart(2, '0')
+      return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+    }
+
+    it('기본으로는 넣지 않는다', async () => {
+      const mock = installMock(['ok'])
+      await new Agent({ instruction: '너는 비서다.' }).send('안녕')
+
+      expect(mock.systemPrompts[0]).toBe('너는 비서다.')
+    })
+
+    it('today: true면 시스템 프롬프트에 들어간다', async () => {
+      const mock = installMock(['ok'])
+      await new Agent({ instruction: '너는 비서다.', today: true }).send('오늘 며칠이야?')
+
+      expect(mock.systemPrompts[0]).toContain(today())
+      expect(mock.systemPrompts[0]).toContain('너는 비서다.')
+    })
+
+    it('요일까지 넣는다 — "다음 주 월요일" 같은 요청에 필요하다', async () => {
+      const mock = installMock(['ok'])
+      await new Agent({ today: true }).send('언제야?')
+
+      expect(mock.systemPrompts[0]).toMatch(
+        /\((Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday)\)/,
+      )
+    })
+
+    it('지시문이 없어도 날짜만으로 시스템 프롬프트가 생긴다', async () => {
+      const mock = installMock(['ok'])
+      await new Agent({ today: true }).send('안녕')
+
+      expect(mock.systemPrompts[0]).toContain(today())
+    })
+
+    it('도구 설명서보다 앞에 온다', async () => {
+      const mock = installMock(['{"tool":"final","argsJson":"{}","answer":"끝"}'])
+      const noop = tool({ name: 'noop', description: '아무것도 안 한다', execute: () => 'ok' })
+      await new Agent({ instruction: '지시문', tools: [noop], today: true }).send('안녕')
+
+      const prompt = mock.systemPrompts[0] ?? ''
+      expect(prompt.indexOf(today())).toBeLessThan(prompt.indexOf('지시문'))
+      expect(prompt.indexOf('지시문')).toBeLessThan(prompt.indexOf('사용 가능한 도구'))
+    })
+  })
+
   it('스트리밍은 조각을 이어붙이면 전체 응답이 된다', async () => {
     installMock(['조각조각 흘러나온다'])
     const a = new Agent()

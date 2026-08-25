@@ -26,7 +26,7 @@ export type AgentEvent =
   | { type: 'context-overflow'; agent: string }
 
 export interface AgentOptions {
-  /** 로그와 병렬 워크플로 결과 라벨에 쓰인다. */
+  /** 로그와 병렬 워크플로우 결과 라벨에 쓰인다. */
   name?: string
   /** 시스템 프롬프트. 이 에이전트의 역할을 여기 적는다. */
   instruction?: string
@@ -40,7 +40,7 @@ export interface AgentOptions {
   /**
    * true면 호출이 끝날 때마다 세션을 버린다. 즉 매 호출이 백지에서 시작한다.
    *
-   * 워크플로 단계로 쓰는 에이전트는 켜라. 안 켜면 flow.run()을 두 번째 호출할 때
+   * 워크플로우 단계로 쓰는 에이전트는 켜라. 안 켜면 flow.run()을 두 번째 호출할 때
    * 첫 번째 실행의 대화가 컨텍스트에 그대로 남아 창을 갉아먹는다.
    * 반대로 챗봇처럼 대화를 이어가야 하면 꺼둔다(기본값).
    */
@@ -57,6 +57,20 @@ export interface AgentOptions {
    * 새로고침 후 이어가기, 탭 간 동기화에 쓴다.
    */
   history?: Array<PromptMessage>
+  /**
+   * 오늘 날짜를 시스템 프롬프트에 한 줄로 넣는다. **기본값 false.**
+   *
+   * 온디바이스 모델은 학습 시점이 고정되어 있고 시계도 없어서, 날짜를 물으면
+   * 확신에 찬 오답을 낸다. 에러가 아니라 조용한 오답이라 가장 알아채기 어렵다.
+   * 날짜나 기간을 다루는 에이전트라면 켜라.
+   *
+   * 도구로 만들지 않은 이유: 도구는 모델이 판단해 호출하고 결과를 되먹이는 왕복이 든다.
+   * 날짜는 값이 정해져 있으므로 처음부터 넣는 편이 20토큰 남짓으로 훨씬 싸다.
+   *
+   * 사용자 기기의 로컬 날짜를 쓴다. 시각이 아니라 날짜만 넣는 이유는,
+   * 세션이 몇십 분 살아 있으면 주입한 시각이 낡아버리기 때문이다.
+   */
+  today?: boolean
   /** 멀티모달을 쓸 때 선언한다. 예: [{ type: 'image' }] */
   expectedInputs?: Array<ExpectedIO>
   expectedOutputs?: Array<ExpectedIO>
@@ -67,7 +81,28 @@ export interface AgentOptions {
   onEvent?: (event: AgentEvent) => void
 }
 
-/** chain/parallel/router가 다루는 최소 단위. Agent도 워크플로도 전부 이걸 만족한다. */
+/**
+ * 시스템 프롬프트에 넣을 오늘 날짜 한 줄.
+ *
+ * 영어로 쓴다. 지시문이 어느 언어든 모델이 가장 잘 다루는 형식이고, 토큰도 가장 적게 든다.
+ * 요일까지 넣는 이유는 "다음 주 월요일" 같은 요청이 요일 없이는 계산되지 않기 때문이다.
+ */
+function todayLine(): string {
+  const now = new Date()
+  const pad = (value: number) => String(value).padStart(2, '0')
+  const weekday = [
+    'Sunday',
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+  ][now.getDay()]
+  return `Today's date: ${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} (${weekday}).`
+}
+
+/** chain/parallel/router가 다루는 최소 단위. Agent도 워크플로우도 전부 이걸 만족한다. */
 export interface Runnable {
   readonly name: string
   run: (input: string) => Promise<string>
@@ -95,11 +130,14 @@ export class Agent implements Runnable {
     this.#transcript = options.history ? [...options.history] : []
   }
 
-  /** 시스템 프롬프트 = 지시문 + (도구가 있으면) 도구 설명서 */
+  /** 시스템 프롬프트 = 오늘 날짜 + 지시문 + (도구가 있으면) 도구 설명서 */
   #systemPrompt(): string {
-    const instruction = this.#options.instruction ?? ''
+    const parts: Array<string> = []
+    if (this.#options.today) parts.push(todayLine())
+    if (this.#options.instruction) parts.push(this.#options.instruction)
     const tools = this.#options.tools ?? []
-    return tools.length ? instruction + '\n' + toolManual(tools) : instruction
+    if (tools.length) parts.push(toolManual(tools))
+    return parts.join('\n')
   }
 
   /** 세션을 만들고(이미 있으면 재사용) 반환한다. 동시 호출해도 한 번만 만든다. */
@@ -139,7 +177,7 @@ export class Agent implements Runnable {
     this.#options.onEvent?.(event)
   }
 
-  /** Runnable 구현. send()의 별칭이라 워크플로에 그대로 꽂을 수 있다. */
+  /** Runnable 구현. send()의 별칭이라 워크플로우에 그대로 꽂을 수 있다. */
   run(input: string): Promise<string> {
     return this.send(input)
   }
