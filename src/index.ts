@@ -1,5 +1,5 @@
-// my-little-agent — Chrome Built-in AI(Prompt API) 기반 초경량 멀티 에이전트 프레임워크
-// My: 사용자 기기에서 실행 / Little: 의존성 0, gzip 3KB 미만 / Agent: 멀티 에이전트 시스템
+// my-little-agent — Chrome 내장 AI로 도구를 쓰는 에이전트를 만들고 이어 붙이는 작은 라이브러리
+// My: 사용자 기기에서 실행 / Little: 의존성 0, gzip 5KB 미만 / Agent: 도구를 쓰고 서로 이어지는 에이전트들
 
 export { Agent, agent } from './agent'
 export type { AgentEvent, AgentOptions, Runnable } from './agent'
