@@ -1,7 +1,7 @@
 {
   "name": "my-little-agent",
-  "version": "0.1.1",
-  "description": "내 컴퓨터에서 도는(My) 가벼운(Little) 멀티 에이전트 프레임워크(Agent) — Chrome Built-in AI 기반",
+  "version": "0.2.0",
+  "description": "Chrome Built-in AI 기반 멀티 에이전트 라이브러리",
   "type": "module",
   "sideEffects": false,
   "license": "MIT",
@@ -20,12 +20,16 @@
     "prompt-api",
     "gemini-nano",
     "agent",
-    "multi-agent"
+    "multi-agent",
+    "tool-calling",
+    "on-device-ai",
+    "translator-api",
+    "summarizer-api"
   ],
   "files": [
     "dist",
     "src",
-    "README-ko_kr.md"
+    "README-en_us.md"
   ],
   "module": "./dist/esm/index.js",
   "types": "./dist/esm/index.d.ts",
