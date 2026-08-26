@@ -47,6 +47,20 @@ export async function modelParams(): Promise<ModelParams | null> {
   return model.params()
 }
 
+/**
+ * 이 상태에서 create()를 부르면 실제로 다운로드가 일어나는가.
+ *
+ * 확인 자체가 실패하면 true로 본다. 진행률을 한 번 더 보여 주는 쪽이,
+ * 정말 받는 중인데 화면이 멈춘 것처럼 보이는 쪽보다 낫다.
+ */
+async function willDownload(check: () => Promise<Availability>): Promise<boolean> {
+  try {
+    return (await check()) !== 'available'
+  } catch {
+    return true
+  }
+}
+
 export interface SessionOptions extends Omit<CreateOptions, 'monitor'> {
   /** 모델 다운로드 진행률 콜백. 0~1 사이 값이 들어온다. */
   onDownloadProgress?: (loaded: number) => void
@@ -55,6 +69,10 @@ export interface SessionOptions extends Omit<CreateOptions, 'monitor'> {
 /**
  * 세션 생성. monitor 콜백 배선을 대신 해준다.
  * 'downloadable' 상태면 이 호출에서 모델 다운로드가 시작되고, 끝날 때까지 resolve되지 않는다.
+ *
+ * 진행률은 **실제로 받을 때만** 보고한다. Chrome은 이미 캐시된 모델에 대해서도
+ * downloadprogress를 쏘기 때문에(0을 찍고 곧바로 1), 그대로 넘기면 페이지를 열 때마다
+ * "다운로드 중"이 번쩍인다. 콜백이 불렸다는 사실 자체가 신호가 되도록 상태를 먼저 본다.
  */
 export async function createSession(
   options: SessionOptions = {},
@@ -63,12 +81,16 @@ export async function createSession(
   if (!model) throw new UnavailableError()
 
   const { onDownloadProgress, ...rest } = options
+  const downloading =
+    onDownloadProgress !== undefined &&
+    (await willDownload(() => model.availability(rest)))
+
   return model.create({
     ...rest,
-    monitor: onDownloadProgress
+    monitor: downloading
       ? (monitor) => {
           monitor.addEventListener('downloadprogress', (event) => {
-            onDownloadProgress(event.loaded)
+            onDownloadProgress?.(event.loaded)
           })
         }
       : undefined,

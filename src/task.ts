@@ -60,11 +60,18 @@ export interface TaskRunnable extends Runnable {
   destroy: () => void
 }
 
-/** monitor 배선. model.ts의 createSession과 같은 방식이다. */
+/**
+ * monitor 배선. model.ts의 createSession과 같은 방식이다.
+ *
+ * downloading이 false면 배선하지 않는다. Chrome은 이미 캐시된 모델에 대해서도
+ * downloadprogress를 쏘기 때문에, 그대로 넘기면 매번 "다운로드 중"이 번쩍인다.
+ * create() 직전에 확인한 availability를 그대로 넘겨 받아 판단한다.
+ */
 function monitorOf(
-  onDownloadProgress?: (loaded: number) => void,
+  onDownloadProgress: ((loaded: number) => void) | undefined,
+  downloading: boolean,
 ): ((monitor: DownloadMonitor) => void) | undefined {
-  if (!onDownloadProgress) return undefined
+  if (!onDownloadProgress || !downloading) return undefined
   return (monitor) => {
     monitor.addEventListener('downloadprogress', (event) =>
       onDownloadProgress(event.loaded),
@@ -73,16 +80,28 @@ function monitorOf(
 }
 
 /**
- * 쓸 수 있는지 확인한다.
+ * 쓸 수 있으면 그 상태를, 아니면 null을 돌려준다.
  * 전역이 없어 undefined가 나오는 경우와 호출 자체가 실패하는 경우까지 전부 '못 씀'으로 본다.
+ *
+ * 판정만이 아니라 상태값을 돌려주는 이유: 곧바로 이어지는 create()가
+ * 진행률을 배선할지 정할 때 같은 값이 필요하다. 두 번 물어볼 이유가 없다.
  */
-async function usable(check: () => Promise<Availability> | undefined): Promise<boolean> {
+async function usable(
+  check: () => Promise<Availability> | undefined,
+): Promise<Availability | null> {
   try {
     const availability = await check()
-    return availability !== undefined && availability !== 'unavailable'
+    return availability === undefined || availability === 'unavailable'
+      ? null
+      : availability
   } catch {
-    return false
+    return null
   }
+}
+
+/** 이 상태에서 create()를 부르면 실제로 다운로드가 일어나는가. */
+function isDownloading(availability: Availability): boolean {
+  return availability !== 'available'
 }
 
 /** 이 단계를 쓸 수 없을 때의 공통 처리. fallback이 있으면 넘기고, 없으면 이유를 밝히고 던진다. */
@@ -121,7 +140,7 @@ function lazyTask<TApi, TInstance extends Destroyable>(config: {
   label: string
   getApi: () => TApi | undefined
   availability: (api: TApi) => Promise<Availability>
-  create: (api: TApi) => Promise<TInstance>
+  create: (api: TApi, downloading: boolean) => Promise<TInstance>
   invoke: (instance: TInstance, input: string) => Promise<string>
   fallback?: Runnable
 }): LazyTask<TInstance> {
@@ -129,9 +148,9 @@ function lazyTask<TApi, TInstance extends Destroyable>(config: {
 
   const resolve = async (): Promise<TInstance> => {
     const api = config.getApi()
-    if (!api || !(await usable(() => config.availability(api))))
-      throw new Error(`${config.label}을(를) 사용할 수 없다.`)
-    instance ??= config.create(api)
+    const status = api ? await usable(() => config.availability(api)) : null
+    if (!api || !status) throw new Error(`${config.label}을(를) 사용할 수 없다.`)
+    instance ??= config.create(api, isDownloading(status))
     return instance
   }
 
@@ -141,11 +160,11 @@ function lazyTask<TApi, TInstance extends Destroyable>(config: {
     async run(input) {
       const api = config.getApi()
       if (!api) return unavailable(config.label, config.fallback, input)
-      if (!(await usable(() => config.availability(api))))
-        return unavailable(config.label, config.fallback, input)
+      const status = await usable(() => config.availability(api))
+      if (!status) return unavailable(config.label, config.fallback, input)
 
       try {
-        instance ??= config.create(api)
+        instance ??= config.create(api, isDownloading(status))
         return await config.invoke(await instance, input)
       } catch (error) {
         // 실패한 인스턴스를 남기면 이후 호출이 전부 같은 실패를 재사용한다.
@@ -227,7 +246,8 @@ export function translator(options: TranslatorStepOptions): TaskRunnable {
       if (from === options.to) return input
 
       const pair = { sourceLanguage: from, targetLanguage: options.to }
-      if (!(await usable(() => api.availability(pair))))
+      const status = await usable(() => api.availability(pair))
+      if (!status)
         return unavailable(
           `Translator API(${from}→${options.to})`,
           options.fallback,
@@ -241,7 +261,7 @@ export function translator(options: TranslatorStepOptions): TaskRunnable {
           instance = api.create({
             ...pair,
             signal: options.signal,
-            monitor: monitorOf(options.onDownloadProgress),
+            monitor: monitorOf(options.onDownloadProgress, isDownloading(status)),
           })
           cache.set(key, instance)
         }
@@ -265,11 +285,12 @@ export function translator(options: TranslatorStepOptions): TaskRunnable {
 async function detectTop(input: string, options: TaskOptions): Promise<string | null> {
   const api = globalThis.LanguageDetector
   if (!api) return null
-  if (!(await usable(() => api.availability()))) return null
+  const status = await usable(() => api.availability())
+  if (!status) return null
   try {
     const detector = await api.create({
       signal: options.signal,
-      monitor: monitorOf(options.onDownloadProgress),
+      monitor: monitorOf(options.onDownloadProgress, isDownloading(status)),
     })
     try {
       return best(await detector.detect(input, { signal: options.signal }))
@@ -306,8 +327,12 @@ export function languageDetector(
     fallback,
     getApi: () => globalThis.LanguageDetector,
     availability: (api) => api.availability(create),
-    create: (api) =>
-      api.create({ ...create, signal, monitor: monitorOf(onDownloadProgress) }),
+    create: (api, downloading) =>
+      api.create({
+        ...create,
+        signal,
+        monitor: monitorOf(onDownloadProgress, downloading),
+      }),
     invoke: async (instance, input) => {
       const top = best(await instance.detect(input, { signal }))
       // 결과가 비는 경우가 실제로 있다(너무 짧은 입력 등). 빈 문자열을 흘리면
@@ -345,8 +370,12 @@ export function summarizer(options: SummarizerStepOptions = {}): TaskRunnable {
     fallback,
     getApi: () => globalThis.Summarizer,
     availability: (api) => api.availability(create),
-    create: (api) =>
-      api.create({ ...create, signal, monitor: monitorOf(onDownloadProgress) }),
+    create: (api, downloading) =>
+      api.create({
+        ...create,
+        signal,
+        monitor: monitorOf(onDownloadProgress, downloading),
+      }),
     invoke: (instance, input) => instance.summarize(input, { signal }),
   })
 }
@@ -377,8 +406,12 @@ export function writer(options: WriterStepOptions = {}): TaskRunnable {
     fallback,
     getApi: () => globalThis.Writer,
     availability: (api) => api.availability(create),
-    create: (api) =>
-      api.create({ ...create, signal, monitor: monitorOf(onDownloadProgress) }),
+    create: (api, downloading) =>
+      api.create({
+        ...create,
+        signal,
+        monitor: monitorOf(onDownloadProgress, downloading),
+      }),
     invoke: (instance, input) => instance.write(input, { context, signal }),
   })
 }
@@ -409,8 +442,12 @@ export function rewriter(options: RewriterStepOptions = {}): TaskRunnable {
     fallback,
     getApi: () => globalThis.Rewriter,
     availability: (api) => api.availability(create),
-    create: (api) =>
-      api.create({ ...create, signal, monitor: monitorOf(onDownloadProgress) }),
+    create: (api, downloading) =>
+      api.create({
+        ...create,
+        signal,
+        monitor: monitorOf(onDownloadProgress, downloading),
+      }),
     invoke: (instance, input) => instance.rewrite(input, { context, signal }),
   })
 }
@@ -450,8 +487,12 @@ export function proofreader(options: ProofreaderStepOptions = {}): ProofreaderRu
     fallback,
     getApi: () => globalThis.Proofreader,
     availability: (api) => api.availability(create),
-    create: (api) =>
-      api.create({ ...create, signal, monitor: monitorOf(onDownloadProgress) }),
+    create: (api, downloading) =>
+      api.create({
+        ...create,
+        signal,
+        monitor: monitorOf(onDownloadProgress, downloading),
+      }),
     invoke: async (instance, input) =>
       (await instance.proofread(input, { signal })).correctedInput,
   })

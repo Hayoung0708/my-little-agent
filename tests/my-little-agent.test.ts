@@ -12,7 +12,12 @@ import {
   step,
   tool,
 } from '../src/index'
-import type { AgentInput, LanguageModelSession, PromptOptions } from '../src/types'
+import type {
+  AgentInput,
+  Availability,
+  LanguageModelSession,
+  PromptOptions,
+} from '../src/types'
 
 /** 프롬프트가 세션에 도달한 기록 */
 interface Call {
@@ -132,7 +137,11 @@ describe('Agent', () => {
 
     it('도구 설명서보다 앞에 온다', async () => {
       const mock = installMock(['{"tool":"final","argsJson":"{}","answer":"끝"}'])
-      const noop = tool({ name: 'noop', description: '아무것도 안 한다', execute: () => 'ok' })
+      const noop = tool({
+        name: 'noop',
+        description: '아무것도 안 한다',
+        execute: () => 'ok',
+      })
       await new Agent({ instruction: '지시문', tools: [noop], today: true }).send('안녕')
 
       const prompt = mock.systemPrompts[0] ?? ''
@@ -402,5 +411,58 @@ describe('워크플로', () => {
 
     await expect(flow.run('글 써줘')).resolves.toBe('초안2')
     expect(inputs[1]).toContain('너무 짧다')
+  })
+})
+
+describe('다운로드 진행률', () => {
+  /** monitor가 배선되었는지만 본다. availability는 테스트마다 다르게 준다. */
+  function installModel(availability: Availability) {
+    let wired = false
+    globalThis.LanguageModel = {
+      async availability() {
+        return availability
+      },
+      async create(options) {
+        wired = options?.monitor !== undefined
+        return {
+          async prompt() {
+            return '답'
+          },
+          // eslint-disable-next-line require-yield
+          async *promptStreaming() {
+            return
+          },
+          async append() {},
+          async clone() {
+            throw new Error('쓰지 않는다')
+          },
+          destroy() {},
+          contextUsage: 0,
+          contextWindow: 4096,
+          addEventListener() {},
+        }
+      },
+    }
+    return () => wired
+  }
+
+  it('이미 받아 둔 모델이면 진행률을 배선하지 않는다', async () => {
+    // Chrome은 캐시된 모델에도 downloadprogress를 쏜다(0 찍고 곧바로 1).
+    // 그대로 흘리면 페이지를 열 때마다 "다운로드 중"이 번쩍인다.
+    const wired = installModel('available')
+    await new Agent({ onDownloadProgress: () => {} }).ready()
+    expect(wired()).toBe(false)
+  })
+
+  it('아직 안 받은 모델이면 진행률을 배선한다', async () => {
+    const wired = installModel('downloadable')
+    await new Agent({ onDownloadProgress: () => {} }).ready()
+    expect(wired()).toBe(true)
+  })
+
+  it('콜백을 안 주면 어느 상태든 배선하지 않는다', async () => {
+    const wired = installModel('downloadable')
+    await new Agent().ready()
+    expect(wired()).toBe(false)
   })
 })

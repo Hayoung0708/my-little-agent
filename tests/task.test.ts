@@ -326,3 +326,37 @@ describe('워크플로에 꽂기', () => {
     expect(globalThis.LanguageModel).toBeUndefined()
   })
 })
+
+describe('다운로드 진행률', () => {
+  /** Summarizer로 Task API 공통 경로를 대표해 본다. 여섯 종류가 같은 lazyTask를 쓴다. */
+  function installSummarizerWith(availability: Availability) {
+    let wired = false
+    globalThis.Summarizer = {
+      async availability() {
+        return availability
+      },
+      async create(options) {
+        wired = options?.monitor !== undefined
+        return {
+          async summarize(input: string) {
+            return input
+          },
+          destroy() {},
+        }
+      },
+    }
+    return () => wired
+  }
+
+  it('이미 받아 둔 모델이면 진행률을 배선하지 않는다', async () => {
+    const wired = installSummarizerWith('available')
+    await summarizer({ onDownloadProgress: () => {} }).run('긴 글')
+    expect(wired()).toBe(false)
+  })
+
+  it('아직 안 받은 모델이면 진행률을 배선한다', async () => {
+    const wired = installSummarizerWith('downloadable')
+    await summarizer({ onDownloadProgress: () => {} }).run('긴 글')
+    expect(wired()).toBe(true)
+  })
+})
