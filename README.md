@@ -1,8 +1,8 @@
 <h1 align="center">My Little Agent</h1>
 
 <p align="center">
-<b>Chrome Built-in AI</b> 기반 <b>멀티 에이전트</b> 조립 라이브러리<br/>
-서버도, API 키도, 토큰 비용도 없이 사용자 브라우저 안에서 전부 끝납니다.
+<b>Chrome Built-in AI</b> 기반 <b>멀티 에이전트</b> 조립 프레임워크<br/>
+서버, API 키, 토큰 비용 없이 사용자 브라우저 안에서 전부 끝납니다.
 </p>
 
 <p align="center">
