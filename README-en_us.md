@@ -1,7 +1,7 @@
 <h1 align="center">My Little Agent</h1>
 
 <p align="center">
-A <b>multi-agent</b> composition library built on <b>Chrome Built-in AI</b><br/>
+A <b>multi-agent</b> composition framework built on <b>Chrome Built-in AI</b><br/>
 No server, no API key, no token bill — it all happens inside the user's browser.
 </p>
 
